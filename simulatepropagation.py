@@ -1,3 +1,4 @@
+from cProfile import label
 import os
 import random
 from typing import List
@@ -6,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 
 class SimulatePropagation:
-    def __init__(self,width:int,height:int,h:float,dt:float,border_vec:np.ndarray=None,prop_grad:List[str]=None,\
+    def __init__(self,width:int,height:int,h:float,dt:float,border_vecs:np.ndarray=None,prop_grads:List[str]=None,\
                 distorted_vec:np.ndarray=None,distorted_func=None,condition:str='neumann'):
         if condition not in ['neumann','diricre']:
             raise ValueError('argument of condition must be \"neumann\" or \"diricre\"')
@@ -32,44 +33,45 @@ class SimulatePropagation:
         self.LB_idxes:List[List[int],List[int]] = [[0],[self.u.shape[1]-1]] #左下角
 
         #障害物がある場合,障害物の境界付近のインデックス番号[X,Y]を追加する
-        if border_vec is not None:
-            border_vec = np.round(border_vec/h).astype(int)
-            for i,vec in enumerate(border_vec):
-                x1 , y1 = vec[0]
-                x2 , y2 = vec[1]
-                xmin = x1 if x1 <= x2 else x2
-                xmax = x1 if x1 >= x2 else x2
-                ymin = y1 if y1 <= y2 else y2
-                ymax = y1 if y1 >= y2 else y2
-                grad = prop_grad[i]
-                next_grad = prop_grad[i+1] if i+1 < len(prop_grad) else prop_grad[0]
-                prev_grad = prop_grad[i-1] if i-1 >= 0 else prop_grad[-1]
-                if x1 == x2:
-                    #self.u[xmin,ymin:ymax+1] = 0
-                    if grad == 'right':
-                        if prev_grad == 'bottom':
-                            [[self.R_idxes[0].append(xmin-1),self.R_idxes[1].append(y)] for y in range(ymin,ymax-1)]
-                            self.RB_idxes[0].append(xmin-1); self.RB_idxes[1].append(ymax-1)
-                        if prev_grad == 'top':
-                            [[self.R_idxes[0].append(xmin-1),self.R_idxes[1].append(y)] for y in range(ymin-1 if next_grad == 'bottom' else ymin+1,ymax+1)]
-                    if grad == 'left':
-                        if prev_grad == 'bottom':
-                            [[self.L_idxes[0].append(xmin),self.L_idxes[1].append(y)] for y in range(ymin,ymax+1)]
-                        if prev_grad == 'top':
-                            [[self.L_idxes[0].append(xmin),self.L_idxes[1].append(y)] for y in range(ymin-1,ymax)]
-                if y1 == y2:
-                    #self.u[xmin:xmax+1,ymin] = 0
-                    if grad == 'bottom':
-                        if prev_grad == 'left':
-                            [[self.B_idxes[0].append(x),self.B_idxes[1].append(ymin-1)] for x in range(xmin,xmax)]
-                        if prev_grad == 'right':
-                            [[self.B_idxes[0].append(x),self.B_idxes[1].append(ymin-1)] for x in range(xmin,xmax+1 if next_grad == 'left' else xmax-1)]
-                    if grad == 'top':
-                        if prev_grad == 'left':
-                            [[self.T_idxes[0].append(x),self.T_idxes[1].append(ymin)] for x in range(xmin,xmax+1)]
-                        if prev_grad == 'right':
-                            [[self.T_idxes[0].append(x),self.T_idxes[1].append(ymin)] for x in range(xmin,xmax-1)]
-                            self.RT_idxes[0].append(xmax-1); self.RT_idxes[1].append(ymin)
+        if border_vecs is not None:
+            border_vecs = np.round(border_vecs/h).astype(int)
+            for border_vec,prop_grad in zip(border_vecs,prop_grads):
+                for i,vec in enumerate(border_vec):
+                    x1 , y1 = vec[0]
+                    x2 , y2 = vec[1]
+                    xmin = x1 if x1 <= x2 else x2
+                    xmax = x1 if x1 >= x2 else x2
+                    ymin = y1 if y1 <= y2 else y2
+                    ymax = y1 if y1 >= y2 else y2
+                    grad = prop_grad[i]
+                    next_grad = prop_grad[i+1] if i+1 < len(prop_grad) else prop_grad[0]
+                    prev_grad = prop_grad[i-1] if i-1 >= 0 else prop_grad[-1]
+                    if x1 == x2:
+                        #self.u[xmin,ymin:ymax+1] = 0
+                        if grad == 'right':
+                            if prev_grad == 'bottom':
+                                [[self.R_idxes[0].append(xmin-1),self.R_idxes[1].append(y)] for y in range(ymin,ymax-1)]
+                                self.RB_idxes[0].append(xmin-1); self.RB_idxes[1].append(ymax-1)
+                            if prev_grad == 'top':
+                                [[self.R_idxes[0].append(xmin-1),self.R_idxes[1].append(y)] for y in range(ymin-1 if next_grad == 'bottom' else ymin+1,ymax+1)]
+                        if grad == 'left':
+                            if prev_grad == 'bottom':
+                                [[self.L_idxes[0].append(xmin),self.L_idxes[1].append(y)] for y in range(ymin,ymax+1)]
+                            if prev_grad == 'top':
+                                [[self.L_idxes[0].append(xmin),self.L_idxes[1].append(y)] for y in range(ymin-1,ymax)]
+                    if y1 == y2:
+                        #self.u[xmin:xmax+1,ymin] = 0
+                        if grad == 'bottom':
+                            if prev_grad == 'left':
+                                [[self.B_idxes[0].append(x),self.B_idxes[1].append(ymin-1)] for x in range(xmin,xmax)]
+                            if prev_grad == 'right':
+                                [[self.B_idxes[0].append(x),self.B_idxes[1].append(ymin-1)] for x in range(xmin,xmax+1 if next_grad == 'left' else xmax-1)]
+                        if grad == 'top':
+                            if prev_grad == 'left':
+                                [[self.T_idxes[0].append(x),self.T_idxes[1].append(ymin)] for x in range(xmin,xmax+1)]
+                            if prev_grad == 'right':
+                                [[self.T_idxes[0].append(x),self.T_idxes[1].append(ymin)] for x in range(xmin,xmax-1)]
+                                self.RT_idxes[0].append(xmax-1); self.RT_idxes[1].append(ymin)
             
         #境界にひずみがある場合、その境界のインデックス番号[X,Y]を取得しておく
         if distorted_vec is not None:
@@ -209,11 +211,21 @@ if __name__ == '__main__':
         height/2 + obstacle_height_1/2,
         height/2 - obstacle_height_1/2,
     ]
+
+
     
     #障害物をベクトル表示
     obstacle_vec = np.array([[(obstacle_x[i],obstacle_y[i]),(obstacle_x[i+1],obstacle_y[i+1])] for i in range(len(obstacle_x)-1)]) #[[(x1,y1),(x2,y2)]]
+    v_1 = obstacle_vec.copy()
+    v_1[:,:,0] = v_1[:,:,0] - 1.5
+    v_2 = obstacle_vec.copy()
+    v_2[:,:,0] = v_2[:,:,0] + 1.5
+
+    V = np.array([obstacle_vec,v_1,v_2])
+
     #obstacle_vecとセット，obstacle_vecに垂直で波がぶつかる方向を示す配列 bottom or top or left or right 
     grad = ['bottom','right','bottom','left','top','right','top','right']
+    G = np.vstack((grad,grad,grad))
 
     #ひずみがある境界座標ベクトル
     distorted_vec = np.array([[(0,height/2+0.2),(0,height/2-0.2)]])
@@ -225,20 +237,18 @@ if __name__ == '__main__':
                                     height, #高さ
                                     h, #空間刻み
                                     dt, #時間刻み
-                                    obstacle_vec, #障害物
-                                    grad, #障害物の向き
-                                    distorted_vec, #歪境界
-                                    distorted_func, #歪の関数
-                                    condition='diricre' #neumann:自由端反射 , diricre:固定端反射になる
+                                    V, #障害物
+                                    G, #障害物の向き
+                                    condition='neumann' #neumann:自由端反射 , diricre:固定端反射になる
                                     )
     
     fig , ax = plt.subplots()
     ims = []
     #gif表示
-    simulator.input_gauss(width,height/2,9)
+    simulator.input_gauss(0,height/2,9)
     while True:
         simulator.update()
-        im = ax.imshow(simulator.result,cmap='binary',extent=[0,width,0,height])
+        im = ax.imshow(simulator.result,cmap='binary',extent=[0,width,height,0],vmin=-0.1,vmax=0.1)
         title = ax.text(0.5, 1.01, f'Time = {round(simulator.time,2)}',
                      ha='center', va='bottom',
                      transform=ax.transAxes, fontsize='large')
@@ -246,7 +256,7 @@ if __name__ == '__main__':
         if simulator.time > tend:
             break
     anim = animation.ArtistAnimation(fig,ims,interval=30)
-    plt.show()
+    anim.save(os.path.join(os.path.dirname(__file__),'課題外','triple.gif'))
     
     #png保存
     #while True: 
