@@ -178,13 +178,14 @@ class SimulatePropagation:
     @property
     def u(self):
         return self._u.T
-   
-def distorted_func(x:float,y:float,t:float) -> np.ndarray: 
-    f = 3
-    period = 1/f
-    return np.cos(2*np.pi*f*t) if  t <= 3*period else 0
 
 if __name__ == '__main__':
+    
+    def distorted_func(x:float,y:float,t:float) -> np.ndarray: 
+        f = 3
+        period = 1/f
+        return np.cos(2*np.pi*f*t) if  t <= 3*period else 0
+    
     for option,value in zip(['font.family','font.size'],['Times New Roman',20]):
         plt.rcParams[option] = value
         
