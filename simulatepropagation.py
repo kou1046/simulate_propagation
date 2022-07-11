@@ -97,11 +97,9 @@ class SimulatePropagation:
     def input_gauss(self,x0,y0,rad):
         x = np.linspace(0,self.width,int(self.width/self.h)).reshape(-1,1)
         y = np.linspace(0,self.height,int(self.height/self.h))
-        z = np.exp(-((x-x0)**2)*rad**2) * np.exp(-((y-y0)**2)*rad**2)
-        self._u = self._u + z
-        if self.time == 0.:
-            self._u_pre = self._u.copy()
-            self.time = dt
+        u = np.exp(-((x-x0)**2)*rad**2) * np.exp(-((y-y0)**2)*rad**2)
+        self._u = self._u + u
+        self._u_pre = self._u_pre + u
     def update(self):
         uR = np.roll(self._u,-1,1)
         uL = np.roll(self._u,1,1)
