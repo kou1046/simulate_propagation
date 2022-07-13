@@ -46,24 +46,24 @@ class SimulatePropagation:
                     next_grad = prop_grad[i+1] if i+1 < len(prop_grad) else prop_grad[0]
                     prev_grad = prop_grad[i-1] if i-1 >= 0 else prop_grad[-1]
                     if grad == 'right':
-                        x = x_init - 1 
-                        ymin = y_init - 1 if next_grad == 'bottom' else [y_init + 2 , self.RT_idxes[0].append(x) , self.RT_idxes[1].append(y_init + 1)][0] #else以降の配列に深い意味はなく，appendしたいだけ
-                        ymax = y_end + 1 if prev_grad == 'top' else [y_end - 2 , self.RB_idxes[0].append(x) , self.RB_idxes[1].append(y_end - 1)][0] #else以降の配列に深い意味はなく，appendしたいだけ
+                        x = x_init 
+                        ymin = y_init if next_grad == 'bottom' else [y_init + 1 , self.RT_idxes[0].append(x) , self.RT_idxes[1].append(y_init)][0] #else以降の配列に深い意味はなく，appendしたいだけ
+                        ymax = y_end if prev_grad == 'top' else [y_end - 1 , self.RB_idxes[0].append(x) , self.RB_idxes[1].append(y_end)][0] #else以降の配列に深い意味はなく，appendしたいだけ
                         [[self.R_idxes[0].append(x),self.R_idxes[1].append(y)] for y in range(ymin,ymax+1)] #この配列も特に意味はない，内包表記を利用してappendを繰り返しているだけ
                     if grad == 'left':
-                        x = x_init + 1
-                        ymin = y_init - 1 if prev_grad == 'bottom' else [y_init + 2 , self.LT_idxes[0].append(x) , self.LT_idxes[1].append(y_init + 1)][0] 
-                        ymax = y_end + 1 if next_grad == 'top' else [y_end - 2 , self.LB_idxes[0].append(x) , self.LB_idxes[1].append(y_end - 1)][0]
+                        x = x_init
+                        ymin = y_init if prev_grad == 'bottom' else [y_init + 1 , self.LT_idxes[0].append(x) , self.LT_idxes[1].append(y_init)][0] 
+                        ymax = y_end if next_grad == 'top' else [y_end - 1 , self.LB_idxes[0].append(x) , self.LB_idxes[1].append(y_end)][0]
                         [[self.L_idxes[0].append(x),self.L_idxes[1].append(y)] for y in range(ymin,ymax+1)]
                     if grad == 'bottom':
-                        xmin = x_init - 1 if prev_grad == 'right' else x_init + 2
-                        xmax = x_end + 1 if next_grad == 'left' else x_end - 2
-                        y = y_init - 1
+                        xmin = x_init if prev_grad == 'right' else x_init + 1
+                        xmax = x_end if next_grad == 'left' else x_end - 1
+                        y = y_init
                         [[self.B_idxes[0].append(x),self.B_idxes[1].append(y)] for x in range(xmin,xmax+1)]
                     if grad == 'top':
-                        xmin = x_init - 1 if next_grad == 'right' else x_init + 2
-                        xmax = x_end + 1 if prev_grad == 'left' else x_end - 2
-                        y = y_init + 1
+                        xmin = x_init if next_grad == 'right' else x_init + 1
+                        xmax = x_end if prev_grad == 'left' else x_end - 1
+                        y = y_init
                         [[self.T_idxes[0].append(x),self.T_idxes[1].append(y)] for x in range(xmin,xmax+1)]
         else:
             self.border_vecs = []
@@ -71,7 +71,7 @@ class SimulatePropagation:
         if distorted_vec is not None:
             distorted_vec = np.round(distorted_vec/h).astype(int)
             for vec in distorted_vec:
-                if vec[0][0] == 0:
+                if vec[0][0] == vec[1][0]:
                     init_y ,end_y = min(vec[:,1]) , max(vec[:,1])
                     self.D_idxes = [[0]*(end_y-init_y+1)] + [list(range(init_y,end_y+1))]
                 else:
@@ -81,16 +81,14 @@ class SimulatePropagation:
             self.D_idxes = []
     def plot_model(self,ax):
         for XY,color,label in zip([self.R_idxes,self.L_idxes,self.T_idxes,self.B_idxes,self.LT_idxes,self.RT_idxes,self.RB_idxes,self.LB_idxes,self.D_idxes],\
-                          ['b','g','r','c','m','m','m','m','k'],
+                          ['b','g','m','c','r','r','r','r','k'],
                           ['right','left','top','bottom','corner',None,None,None,'input']):
             if not XY:
                 break
-            ax.scatter(*XY,color=color,label=label,s=1)
+            ax.scatter(*XY,color=color,label=label)
             ax.legend(bbox_to_anchor=(0.5, -0.5), loc='upper center',ncol=3)
             ax.set(xlim=[0,self._u.shape[0]],ylim=[0,self._u.shape[1]],aspect='equal',xlabel='x grid num',ylabel='y grid num')
             ax.invert_yaxis()
-        for border_vec in self.border_vecs:
-            ax.plot(border_vec[:,0,0],border_vec[:,0,1],'k')
     def input_gauss(self,x0,y0,rad):
         x = np.linspace(0,self.width,int(self.width/self.h)).reshape(-1,1)
         y = np.linspace(0,self.height,int(self.height/self.h))
@@ -202,7 +200,7 @@ if __name__ == '__main__':
 
     #障害物をベクトル表示
     obstacle_vec = np.array([[[(obstacle_x[i],obstacle_y[i]),(obstacle_x[i+1],obstacle_y[i+1])] for i in range(len(obstacle_x)-1)]]) #[[(x1,y1),(x2,y2)]]
-    #obstacle_vecとセット，obstacle_vecに垂直で波がぶつかる方向を示す配列 bottom or top or left or right 
+    #obstacle_vecとセット　障害物の（波が当たる）向き
     t = 'top'
     r = 'right'
     l = 'left'
@@ -220,7 +218,7 @@ if __name__ == '__main__':
                                     h, #空間刻み
                                     dt, #時間刻み
                                     obstacle_vec, #障害物
-                                    grad, #障害物の向き
+                                    grad, #向き
                                     distorted_vec, #歪がある境界
                                     distorted_func, #歪の関数
                                     condition='diricre' #neumann:自由端反射 , diricre:固定端反射になる
