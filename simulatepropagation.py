@@ -285,7 +285,7 @@ if __name__ == '__main__':
     
     output = os.path.join(__file__,'..') #このスクリプトの場所
     show_model(simulator)
-    make_gif(simulator,tend,save=False)
+    make_gif(simulator,tend,save=True,output=output)
     step = 0.5 #[sec]
     save_png(simulator,tend,step,output)
   
