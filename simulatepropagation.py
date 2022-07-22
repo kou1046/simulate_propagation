@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 import time
 
+from tqdm import tqdm
+
 class SimulatePropagation:
     def __init__(self,width:int,height:int,h:float,dt:float,border_vecs:np.ndarray=None,prop_grads:List[str]=None,\
                 distorted_vec:np.ndarray=None,distorted_func:Callable[[float,float,float],np.ndarray]=None,condition:str='neumann'):
@@ -171,6 +173,10 @@ class SimulatePropagation:
         self._u_pre = self._u.copy()
         self._u = new_u.copy()
         self.time += self.dt
+    def reset(self):
+        self._u = np.full(self._u.shape,0)
+        self._u_pre = self._u.copy()
+        self.time = 0
     @property
     def u(self):
         return self._u.T
@@ -194,15 +200,14 @@ def show_model(sim:SimulatePropagation):
 def make_gif(sim:SimulatePropagation,tend:float,save:bool=False,output:str=os.path.join(__file__,'..')):
     fig , ax = plt.subplots()
     ims = []
-    while True:
+    time_range = np.arange(0,tend+sim.dt,sim.dt)
+    for _ in tqdm(time_range):
         sim.update() #dtだけ更新
         im = ax.imshow(sim.u,cmap='summer',extent=[0,sim.width,sim.height,0],vmin=-0.01,vmax=0.01)
         title = ax.text(0.5, 1.01, f'Time = {round(sim.time,2)}',
                      ha='center', va='bottom',
                      transform=ax.transAxes, fontsize='large')
         ims.append([im,title])
-        if sim.time > tend:
-            break
     anim = animation.ArtistAnimation(fig,ims,interval=30)
     fig.colorbar(im,orientation='horizontal')
     if save:
@@ -283,9 +288,12 @@ if __name__ == '__main__':
                                     condition='neumann' #neumann:自由端反射 , diricre:固定端反射になる
                                     )
     
-    output = os.path.join(__file__,'..') #このスクリプトの場所
     show_model(simulator)
-    make_gif(simulator,tend,save=True,output=output)
+    
+    output = os.path.join(__file__,'..') #このスクリプトの場所
+    make_gif(simulator,tend,save=False,output=output)
+    
+    simulator.reset()
     step = 0.5 #[sec]
     save_png(simulator,tend,step,output)
   
