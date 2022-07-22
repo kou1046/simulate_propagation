@@ -1,16 +1,14 @@
-from concurrent.futures import process
 import os
 import random
-from typing import Callable, List
+from typing import Callable, List , Tuple
 import numpy as np 
 import matplotlib.pyplot as plt
 from matplotlib import animation
 import time
-
 from tqdm import tqdm
 
 class SimulatePropagation:
-    def __init__(self,width:int,height:int,h:float,dt:float,border_vecs:np.ndarray=None,prop_grads:List[str]=None,\
+    def __init__(self,width:int,height:int,h:float,dt:float,border_vecs_arr:np.ndarray=None,prop_grads:List[str]=None,\
                 distorted_vec:np.ndarray=None,distorted_func:Callable[[float,float,float],np.ndarray]=None,condition:str='neumann'):
         if condition not in {'neumann','diricre'}:
             raise ValueError('argument of condition must be \"neumann\" or \"diricre\"')
@@ -26,18 +24,19 @@ class SimulatePropagation:
         self.g = distorted_func
         
         #各境界付近のインデックス番号[X,Y]の配列
-        self.T_idxes:List[List[int],List[int]] = [list(range(1,self._u.shape[0]-1))] + [[0]*(self._u.shape[0]-2)] #上
-        self.B_idxes:List[List[int],List[int]] = [list(range(1,self._u.shape[0]-1))] + [[self._u.shape[1]-1]*(self._u.shape[0]-2)] #下
-        self.L_idxes:List[List[int],List[int]] = [[0]*(self._u.shape[1]-2)] + [list(range(1,self._u.shape[1]-1))] #左
-        self.R_idxes:List[List[int],List[int]] = [[self._u.shape[0]-1]*(self._u.shape[1]-2)] + [list(range(1,self._u.shape[1]-1))] #右
-        self.LT_idxes:List[List[int],List[int]] = [[0],[0]]
-        self.RT_idxes:List[List[int],List[int]] = [[self._u.shape[0]-1],[0]] #右上角
-        self.RB_idxes:List[List[int],List[int]] = [[self._u.shape[0]-1],[self._u.shape[1]-1]] #右下角
-        self.LB_idxes:List[List[int],List[int]] = [[0],[self._u.shape[1]-1]] #左下角
+        X = Y = List[int]  #型エイリアス
+        self.T_idxes:List[X,Y] = [list(range(1,self._u.shape[0]-1))] + [[0]*(self._u.shape[0]-2)] #上
+        self.B_idxes:List[X,Y] = [list(range(1,self._u.shape[0]-1))] + [[self._u.shape[1]-1]*(self._u.shape[0]-2)] #下
+        self.L_idxes:List[X,Y] = [[0]*(self._u.shape[1]-2)] + [list(range(1,self._u.shape[1]-1))] #左
+        self.R_idxes:List[X,Y] = [[self._u.shape[0]-1]*(self._u.shape[1]-2)] + [list(range(1,self._u.shape[1]-1))] #右
+        self.LT_idxes:List[X,Y] = [[0],[0]]
+        self.RT_idxes:List[X,Y] = [[self._u.shape[0]-1],[0]] #右上角
+        self.RB_idxes:List[X,Y] = [[self._u.shape[0]-1],[self._u.shape[1]-1]] #右下角
+        self.LB_idxes:List[X,Y] = [[0],[self._u.shape[1]-1]] #左下角
 
         #障害物がある場合,障害物の境界付近のインデックス番号[X,Y]を追加する
-        if border_vecs is not None:
-            self.border_vecs = np.round(border_vecs/h).astype(int)
+        if border_vecs_arr is not None:
+            self.border_vecs = np.round(border_vecs_arr/h).astype(int)
             for border_vec,prop_grad in zip(self.border_vecs,prop_grads):
                 for i,vec in enumerate(border_vec):
                     x1 , y1 = vec[0]
@@ -180,7 +179,8 @@ class SimulatePropagation:
     @property
     def u(self):
         return self._u.T
-    
+
+#時間を計るデコレータ
 def time_measurement(func):
     def inner(*arg,**kwarg):
         start = time.time()
@@ -203,7 +203,7 @@ def make_gif(sim:SimulatePropagation,tend:float,save:bool=False,output:str=os.pa
     time_range = np.arange(0,tend+sim.dt,sim.dt)
     for _ in tqdm(time_range):
         sim.update() #dtだけ更新
-        im = ax.imshow(sim.u,cmap='summer',extent=[0,sim.width,sim.height,0],vmin=-0.01,vmax=0.01)
+        im = ax.imshow(sim.u,cmap='magma',extent=[0,sim.width,sim.height,0],vmin=-0.01,vmax=0.01)
         title = ax.text(0.5, 1.01, f'Time = {round(sim.time,2)}',
                      ha='center', va='bottom',
                      transform=ax.transAxes, fontsize='large')
@@ -216,8 +216,8 @@ def make_gif(sim:SimulatePropagation,tend:float,save:bool=False,output:str=os.pa
         plt.show()
 
 @time_measurement
-def save_png(sim:SimulatePropagation,tend:float,step:float,output:str=os.path.join(__file__,'..')): #step [sec]
-    out_dir = os.path.join(output,'png_result')
+def save_pngs(sim:SimulatePropagation,tend:float,step:float,output:str=os.path.join(__file__,'..')): #step [sec]
+    out_dir = os.path.join(output,'png')
     os.makedirs(out_dir,exist_ok=True)
     time_range = np.arange(0,tend+sim.dt,sim.dt)
     for i,_ in enumerate(time_range):
@@ -265,9 +265,12 @@ if __name__ == '__main__':
     ]
 
     #障害物をベクトル表示
-    obstacle_vec = np.array([[[(obstacle_x[i],obstacle_y[i]),(obstacle_x[i+1],obstacle_y[i+1])] for i in range(len(obstacle_x)-1)]]) #[[(x1,y1),(x2,y2)]]
-    #obstacle_vecとセット　障害物の（波が当たる）向き
-    grad = [['bottom','right','bottom','left','top','right','top','right']]
+    Vector = Tuple[Tuple[float,float],Tuple[float,float]]; #((始点x,始点y),(終点x,終点y)) 別にタプルじゃなくても良い
+    Vectors = List[Vector]
+    obstacle_vecs_arr:List[Vectors] = np.array([[((obstacle_x[i],obstacle_y[i]),(obstacle_x[i+1],obstacle_y[i+1])) for i in range(len(obstacle_x)-1)]]) #ここのListはndarray
+    #obstacle_vecs_arrとセットなので要素数を等しくする　障害物の（波が当たる）向き
+    grads:List[List[str]] = [['bottom','right','bottom','left','top','right','top','right']]
+    
     #ひずみがある境界座標ベクトル
     distorted_vec = np.array([[(0,height/2+0.2),(0,height/2-0.2)]])
     #歪の関数
@@ -281,19 +284,16 @@ if __name__ == '__main__':
                                     height, #高さ
                                     h, #空間刻み
                                     dt, #時間刻み
-                                    obstacle_vec, #障害物
-                                    grad, #向き
+                                    obstacle_vecs_arr, #障害物
+                                    grads, #向き
                                     distorted_vec, #歪がある境界
                                     distorted_func, #歪の関数
                                     condition='neumann' #neumann:自由端反射 , diricre:固定端反射になる
                                     )
     
     show_model(simulator)
-    
-    output = os.path.join(__file__,'..') #このスクリプトの場所
-    make_gif(simulator,tend,save=False,output=output)
-    
+    make_gif(simulator,tend,save=False)
     simulator.reset()
     step = 0.5 #[sec]
-    save_png(simulator,tend,step,output)
+    save_pngs(simulator,tend,step)
   
