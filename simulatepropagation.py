@@ -1,9 +1,11 @@
+from concurrent.futures import process
 import os
 import random
 from typing import Callable, List
 import numpy as np 
 import matplotlib.pyplot as plt
 from matplotlib import animation
+import time
 
 class SimulatePropagation:
     def __init__(self,width:int,height:int,h:float,dt:float,border_vecs:np.ndarray=None,prop_grads:List[str]=None,\
@@ -126,7 +128,7 @@ class SimulatePropagation:
             #下端
             X , Y = np.array(self.B_idxes)
             new_u[X,Y] = 2*self._u[X,Y] - self._u_pre[X,Y] + self.alpha*(self._u[X-1,Y]+self._u[X+1,Y]+2*self._u[X,Y-1]-4*self._u[X,Y])
-            o_idxes = Y+1<self._u.shape[1]
+            o_idxes = (Y+1<self._u.shape[1])
             new_u[X[o_idxes],Y[o_idxes]+1] = 0 #障害物内部に波が侵入しないようにする処理
 
             #左上端
@@ -172,43 +174,100 @@ class SimulatePropagation:
     @property
     def u(self):
         return self._u.T
+    
+def time_measurement(func):
+    def inner(*arg,**kwarg):
+        start = time.time()
+        print(f'{func.__name__ } 実行中...')
+        func(*arg,**kwarg)
+        print(f'{func.__name__} 終了.({time.time()-start} sec)')
+    return inner
+    
+def show_model(sim:SimulatePropagation):
+    fig , ax = plt.subplots()
+    for border_vec in sim.border_vecs:
+        ax.plot(border_vec[:,[0],[0]],border_vec[:,[0],[1]],'k')    
+    sim.plot_model(ax)
+    plt.show()
+    
+@time_measurement
+def make_gif(sim:SimulatePropagation,tend:float,save:bool=False,output:str=os.path.join(__file__,'..')):
+    fig , ax = plt.subplots()
+    ims = []
+    while True:
+        sim.update() #dtだけ更新
+        im = ax.imshow(sim.u,cmap='summer',extent=[0,sim.width,sim.height,0],vmin=-0.01,vmax=0.01)
+        title = ax.text(0.5, 1.01, f'Time = {round(sim.time,2)}',
+                     ha='center', va='bottom',
+                     transform=ax.transAxes, fontsize='large')
+        ims.append([im,title])
+        if sim.time > tend:
+            break
+    anim = animation.ArtistAnimation(fig,ims,interval=30)
+    fig.colorbar(im,orientation='horizontal')
+    if save:
+        anim.save(os.path.join(output,'propagation.gif'))
+    else:
+        plt.show()
 
+@time_measurement
+def save_png(sim:SimulatePropagation,tend:float,step:float,output:str=os.path.join(__file__,'..')): #step [sec]
+    out_dir = os.path.join(output,'png_result')
+    os.makedirs(out_dir,exist_ok=True)
+    time_range = np.arange(0,tend+sim.dt,sim.dt)
+    for i,_ in enumerate(time_range):
+        simulator.update()
+        if i*sim.dt % step == 0:
+            fig , ax = plt.subplots()
+            ax.imshow(sim.u,cmap='binary',vmin=-0.01,vmax=0.01,extent=[0,width,0,height])
+            ax.set(title=f't = {round(sim.time,2)}',xlabel='width',ylabel='height')
+            fig.savefig(os.path.join(out_dir,f'time_{round(sim.time,2)}_propagation.png'))
+    
 if __name__ == '__main__':
-    
-    def distorted_func(x:float,y:float,t:float) -> np.ndarray: 
-        f = 3
-        period = 1/f
-        return np.cos(2*np.pi*f*t) if  t <= 3*period else 0
-    
+
     for option,value in zip(['font.family','font.size'],['Times New Roman',20]):
         plt.rcParams[option] = value
-        
+    
     width = 5 #幅
-    height = 5 #高さ
+    height = 1 #高さ
     obstacle_height_1 = 0.4
     obstacle_height_2 = 0.6
     obstacle_width = 0.8
 
     #障害物のx座標
     obstacle_x = [ 
-        1,2,2,3,3,4,4,3,3,2,2,1,1
+        width/2 - obstacle_width/2,
+        width/2 , 
+        width/2 , 
+        width/2 + obstacle_width/2,
+        width/2 + obstacle_width/2,
+        width/2,
+        width/2,
+        width/2 - obstacle_width/2,
+        width/2 - obstacle_width/2,
     ]
     #障害物のy座標
     obstacle_y = [
-        2,2,1,1,2,2,3,3,4,4,3,3,2
+        height/2 - obstacle_height_1/2,
+        height/2 - obstacle_height_1/2,
+        height/2 - obstacle_height_2/2,
+        height/2 - obstacle_height_2/2,
+        height/2 + obstacle_height_2/2,
+        height/2 + obstacle_height_2/2,
+        height/2 + obstacle_height_1/2,
+        height/2 + obstacle_height_1/2,
+        height/2 - obstacle_height_1/2,
     ]
 
     #障害物をベクトル表示
     obstacle_vec = np.array([[[(obstacle_x[i],obstacle_y[i]),(obstacle_x[i+1],obstacle_y[i+1])] for i in range(len(obstacle_x)-1)]]) #[[(x1,y1),(x2,y2)]]
     #obstacle_vecとセット　障害物の（波が当たる）向き
-    t = 'top'
-    r = 'right'
-    l = 'left'
-    b = 'bottom'
-    grad = [[b,r,b,l,b,l,t,l,t,r,t,r]]
-
+    grad = [['bottom','right','bottom','left','top','right','top','right']]
     #ひずみがある境界座標ベクトル
     distorted_vec = np.array([[(0,height/2+0.2),(0,height/2-0.2)]])
+    #歪の関数
+    f = 3
+    distorted_func = lambda x,y,t:np.cos(2*np.pi*f*t) if  t <= 3*(1/f) else 0
     
     h = 0.01 #空間刻み幅
     dt = 0.005 #時間刻み
@@ -221,21 +280,12 @@ if __name__ == '__main__':
                                     grad, #向き
                                     distorted_vec, #歪がある境界
                                     distorted_func, #歪の関数
-                                    condition='diricre' #neumann:自由端反射 , diricre:固定端反射になる
+                                    condition='neumann' #neumann:自由端反射 , diricre:固定端反射になる
                                     )
     
-    fig , ax = plt.subplots()
-    ims = []
-    while True:
-        simulator.update() #dtだけ更新
-        im = ax.imshow(simulator.u,cmap='summer',extent=[0,width,height,0],vmin=-0.01,vmax=0.01)
-        title = ax.text(0.5, 1.01, f'Time = {round(simulator.time,2)}',
-                     ha='center', va='bottom',
-                     transform=ax.transAxes, fontsize='large')
-        ims.append([im,title])
-        if simulator.time > tend:
-            break
-    ax.plot(obstacle_x,obstacle_y,'k')
-    anim = animation.ArtistAnimation(fig,ims,interval=30)
-    fig.colorbar(im,orientation='horizontal')
-    plt.show()
+    output = os.path.join(__file__,'..') #このスクリプトの場所
+    show_model(simulator)
+    make_gif(simulator,tend,save=False)
+    step = 0.5 #[sec]
+    save_png(simulator,tend,step,output)
+  
