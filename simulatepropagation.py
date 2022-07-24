@@ -202,12 +202,12 @@ def make_gif(sim:SimulatePropagation,tend:float,save:bool=False,output:str=os.pa
     ims = []
     time_range = np.arange(0,tend+sim.dt,sim.dt)
     for _ in tqdm(time_range):
-        sim.update() #dtだけ更新
         im = ax.imshow(sim.u,cmap='magma',extent=[0,sim.width,sim.height,0],vmin=-0.01,vmax=0.01)
         title = ax.text(0.5, 1.01, f'Time = {round(sim.time,2)}',
                      ha='center', va='bottom',
                      transform=ax.transAxes, fontsize='large')
         ims.append([im,title])
+        sim.update() #dtだけ更新
     anim = animation.ArtistAnimation(fig,ims,interval=30)
     fig.colorbar(im,orientation='horizontal')
     if save:
@@ -221,12 +221,12 @@ def save_pngs(sim:SimulatePropagation,tend:float,step:float,output:str=os.path.j
     os.makedirs(out_dir,exist_ok=True)
     time_range = np.arange(0,tend+sim.dt,sim.dt)
     for i,_ in enumerate(time_range):
-        simulator.update()
-        if i*sim.dt % step == 0:
+        if round(i*sim.dt % step,3) == 0 or round(i*sim.dt % step,3) == step:
             fig , ax = plt.subplots()
             ax.imshow(sim.u,cmap='binary',vmin=-0.01,vmax=0.01,extent=[0,width,0,height])
             ax.set(title=f't = {round(sim.time,2)}',xlabel='width',ylabel='height')
             fig.savefig(os.path.join(out_dir,f'time_{round(sim.time,2)}_propagation.png'))
+        simulator.update()
     
 if __name__ == '__main__':
 
@@ -292,8 +292,8 @@ if __name__ == '__main__':
                                     )
     
     show_model(simulator)
-    make_gif(simulator,tend,save=False)
-    simulator.reset()
+    #make_gif(simulator,tend,save=False)
+    #simulator.reset()
     step = 0.5 #[sec]
     save_pngs(simulator,tend,step)
   
