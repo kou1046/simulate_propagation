@@ -7,7 +7,7 @@ from matplotlib import animation
 import time
 from tqdm import tqdm
 
-class SimulatePropagation:
+class SimulatePropagation: 
     def __init__(self,width:int,height:int,h:float,dt:float,border_vecs_arr:np.ndarray=None,prop_grads:List[str]=None,\
                 distorted_vec:np.ndarray=None,distorted_func:Callable[[float,float,float],np.ndarray]=None,condition:str='neumann'):
         if condition not in {'neumann','diricre'}:
@@ -87,15 +87,15 @@ class SimulatePropagation:
                           ['b','g','m','c','r','r','r','r','k'],
                           ['right','left','top','bottom','corner',None,None,None,'input']):
             if not XY:
-                break
+                continue
             ax.scatter(*XY,color=color,label=label)
             ax.legend(bbox_to_anchor=(0.5, -0.5), loc='upper center',ncol=3)
             ax.set(xlim=[0,self._u.shape[0]],ylim=[0,self._u.shape[1]],aspect='equal',xlabel='x grid num',ylabel='y grid num')
             ax.invert_yaxis()
-    def input_gauss(self,x0,y0,rad):
+    def input_gauss(self,x0:float,y0:float,rad:float,A:float=1.):
         x = np.linspace(0,self.width,int(self.width/self.h)).reshape(-1,1)
         y = np.linspace(0,self.height,int(self.height/self.h))
-        u = np.exp(-((x-x0)**2)*rad**2) * np.exp(-((y-y0)**2)*rad**2)
+        u = A*np.exp(-((x-x0)**2)*rad**2) * np.exp(-((y-y0)**2)*rad**2)
         self._u = self._u + u
         self._u_pre = self._u_pre + u
     def update(self):
@@ -212,8 +212,8 @@ def make_gif(sim:SimulatePropagation,tend:float,save:bool=False,output:str=os.pa
     fig.colorbar(im,orientation='horizontal')
     if save:
         anim.save(os.path.join(output,'propagation.gif'))
-    else:
-        plt.show()
+    plt.show()
+    sim.reset()
 
 @time_measurement
 def save_pngs(sim:SimulatePropagation,tend:float,step:float,output:str=os.path.join(__file__,'..')): #step [sec]
@@ -226,7 +226,8 @@ def save_pngs(sim:SimulatePropagation,tend:float,step:float,output:str=os.path.j
             ax.imshow(sim.u,cmap='binary',vmin=-0.01,vmax=0.01,extent=[0,width,0,height])
             ax.set(title=f't = {round(sim.time,2)}',xlabel='width',ylabel='height')
             fig.savefig(os.path.join(out_dir,f'time_{round(sim.time,2)}_propagation.png'))
-        simulator.update()
+        sim.update()
+    sim.reset()
     
 if __name__ == '__main__':
 
@@ -272,10 +273,10 @@ if __name__ == '__main__':
     grads:List[List[str]] = [['bottom','right','bottom','left','top','right','top','right']]
     
     #ひずみがある境界座標ベクトル
-    distorted_vec = np.array([[(0,height/2+0.2),(0,height/2-0.2)]])
+    distorted_vec:Vectors = np.array([[(0,height/2+0.2),(0,height/2-0.2)]]) #vectorのListではなくvectorのndarray型
     #歪の関数
     f = 3
-    distorted_func = lambda x,y,t:np.cos(2*np.pi*f*t) if  t <= 3*(1/f) else 0
+    distorted_func:Callable[[float,float,float],np.ndarray] = lambda x,y,t:np.cos(2*np.pi*f*t) if  t <= 3*(1/f) else 0
     
     h = 0.01 #空間刻み幅
     dt = 0.005 #時間刻み
@@ -292,8 +293,7 @@ if __name__ == '__main__':
                                     )
     
     show_model(simulator)
-    #make_gif(simulator,tend,save=False)
-    #simulator.reset()
-    step = 0.5 #[sec]
-    save_pngs(simulator,tend,step)
+    make_gif(simulator,tend,save=False)
+    #step = 0.5 #[sec]
+    #save_pngs(simulator,tend,step)
   
